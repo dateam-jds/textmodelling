@@ -1,9 +1,8 @@
-library(googlesheets4)
-library(tidyverse)
-library(textmineR)
-library(rtweet)
-library(katadasaR)
-library(SnowballC)
+library(tidyverse) ###data wrangling
+library(rtweet) ###data fetching
+library(textmineR) ###data modeling / preprocessing
+library(katadasaR) ###lemmatization bahasa indonesia
+library(SnowballC) ###Steaming
 
 
 # create token named "twitter_token"
@@ -20,20 +19,20 @@ twitter_token <- create_token(
 rstats_tweets <- search_tweets(q = "Jawa Barat",
                                n = 3000)
 
-stopword <- read_csv("stopword_list.csv", col_names = FALSE) %>% 
+stopword <- read_csv("./df/stopword_list.csv", col_names = FALSE) %>% 
   rename(word = X1)
-new_stop <- c("jawa", "barat", "jabar")
+new_stop <- data.frame(word = c("jawa", "barat", "jabar"))
 stopword <- rbind(stopword, new_stop)
 
 #################### cleansing data
 text <- rstats_tweets %>% 
-  transmute(text = text %>% str_to_lower() %>% 
+  transmute(id = status_id,
+            text = text %>% str_to_lower() %>%
               str_remove_all("([:punct:]|\\d*)") %>% 
               str_remove_all("(\n)") %>% 
               str_remove_all("(https.*)\\s|(https.*)$") %>% 
               str_replace_all('([[:alpha:]])\\1+', '\\1')) %>% 
-  distinct(text) %>% 
-  mutate(id = row_number()) %>% 
+  distinct(text, .keep_all = TRUE) %>% 
   na.omit
 
 
@@ -57,14 +56,14 @@ tokens <- text %>%
 ####document term matrix
 dtm <- CreateDtm(tokens$text, 
                  doc_names = tokens$id, 
-                 stem_lemma_function = function (x) SnowballC::wordStem(x, "id"),
+                 # stem_lemma_function = function (x) SnowballC::wordStem(x, "id"),
                  ngram_window = c(1, 2))
 ### Term frequencies matrix
 tf <- TermDocFreq(dtm = dtm) %>% tibble()
 
-original_tf <- tf %>% select(term, term_freq,doc_freq) %>% tibble()
-
-rownames(original_tf) <- 1:nrow(original_tf)
-
-vocabulary <- tf$term[ tf$term_freq > 1 & tf$doc_freq < nrow(dtm) / 2 ]
+# original_tf <- tf %>% select(term, term_freq,doc_freq) %>% tibble()
+# 
+# rownames(original_tf) <- 1:nrow(original_tf)
+# 
+# vocabulary <- tf$term[ tf$term_freq > 1 & tf$doc_freq < nrow(dtm) / 2 ]
 
