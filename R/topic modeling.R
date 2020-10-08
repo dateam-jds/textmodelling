@@ -24,10 +24,6 @@ model_list <- TmParallelApply(X = k_list, FUN = function(k){
 }, export= ls(), # c("nih_sample_dtm"), # export only needed for Windows machines
 cpus = 2) 
 
-
-
-####evaluasi model
-
 #model tuning
 #choosing the best model
 coherence_mat <- data.frame(k = sapply(model_list, function(x) nrow(x$phi)), 
@@ -44,10 +40,12 @@ ggplot(coherence_mat, aes(x = k, y = coherence)) +
   ylab("Coherence")
 
 ###best model
+model <- model_list[which.max(coherence_mat$coherence)][[1]]
 model$summary <- SummarizeTopics(model)
 
-top20_terms <- as.data.frame(model$top_terms)
+topic_label <- model$summary %>% select(topic, label_1)
 
+top20_terms <- as.data.frame(model$top_terms)
 
 # predictions with gibbs
 assignments <- predict(model, dtm,
@@ -58,14 +56,10 @@ assignments <- predict(model, dtm,
 
 hasil_pred <- data.frame(assignments, id = rownames(dtm),
                          text = tokens$text) %>% as_tibble
-
-hasil_pred %>% 
-  transmute(id, max = max(c_across(t_1:t_14)))
-
-hasil_pred %>% gather("topics", "values", -id, -text) %>% 
+topics_assignment <- hasil_pred %>% gather("topics", "values", -id, -text) %>% 
   arrange(id %>% desc, values %>% desc) %>% 
   filter(values>=0.5) %>% 
   group_by(id) %>% 
-  top_n(3)
-  
-  slice(which.max(values))
+  top_n(3) %>% 
+  ungroup %>% 
+  inner_join(topic_label, by = c("topics" = "topic"))
