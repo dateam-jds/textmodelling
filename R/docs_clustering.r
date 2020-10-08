@@ -21,7 +21,6 @@ p_words <- colSums(dtm) / sum(dtm)
 
 cluster_words <- lapply(unique(clustering), function(x){
   rows <- dtm[ clustering == x , ]
-  # for memory's sake, drop all words that don't appear in the cluster
   rows <- rows[ , colSums(rows) > 0 ]
   colSums(rows) / sum(rows) - p_words[ colnames(rows) ]
 })
