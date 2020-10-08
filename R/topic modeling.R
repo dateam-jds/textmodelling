@@ -5,7 +5,6 @@ k_list <- seq(1, 25, by = 1)
 model_dir <- paste0("models_", digest::digest(colnames(nih_sample_dtm), algo = "sha1"))
 
 # Fit a bunch of LDA models
-# even on this trivial corpus, it will a bit of time to fit all of these models
 model_list <- TmParallelApply(X = k_list, FUN = function(k){
   
   m <- FitLdaModel(dtm = dtm, 
@@ -29,7 +28,6 @@ cpus = 2)
 
 ####evaluasi model
 
-#export only needed for Windows machines
 #model tuning
 #choosing the best model
 coherence_mat <- data.frame(k = sapply(model_list, function(x) nrow(x$phi)), 
@@ -46,28 +44,9 @@ ggplot(coherence_mat, aes(x = k, y = coherence)) +
   ylab("Coherence")
 
 ###best model
+model$summary <- SummarizeTopics(model)
 
-model <- model_list[which.max(coherence_mat$coherence)][[1]]
-model$top_terms <- GetTopTerms(phi = model$phi, M = 20)
-model$prevalence <- colSums(model$theta) / sum(model$theta) * 100
-model$labels <- LabelTopics(assignments = model$theta > 0.05, 
-                            dtm = dtm,
-                            M = 1)
-
-
-model$summary <- data.frame(topic = rownames(model$phi),
-                            label = model$labels,
-                            coherence = round(model$coherence, 3),
-                            prevalence = round(model$prevalence,3),
-                            top_terms = apply(model$top_terms, 2, function(x){
-                              paste(x, collapse = ", ")
-                            }),
-                            stringsAsFactors = FALSE)
-
-
-model$summary[ order(model$summary$prevalence, decreasing = TRUE) , ][ 1:10 , ]
-
-top20_wide <- as.data.frame(model$top_terms)
+top20_terms <- as.data.frame(model$top_terms)
 
 
 # predictions with gibbs
@@ -77,13 +56,16 @@ assignments <- predict(model, dtm,
                        burnin = 180,
                        cpus = 2)
 
-# predictions with dot
-assignments_dot <- predict(model, dtm,
-                           method = "dot")
+hasil_pred <- data.frame(assignments, id = rownames(dtm),
+                         text = tokens$text) %>% as_tibble
 
+hasil_pred %>% 
+  transmute(id, max = max(c_across(t_1:t_14)))
 
-# compare
-barplot(rbind(assignments[10,], assignments_dot[10,]),
-        col = c("red", "blue"), las = 2, beside = TRUE)
-legend("topright", legend = c("gibbs", "dot"), col = c("red", "blue"), 
-       fill = c("red", "blue"))
+hasil_pred %>% gather("topics", "values", -id, -text) %>% 
+  arrange(id %>% desc, values %>% desc) %>% 
+  filter(values>=0.5) %>% 
+  group_by(id) %>% 
+  top_n(3)
+  
+  slice(which.max(values))
